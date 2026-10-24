@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { AppConfig, FundType, Transaction } from '../types';
 import { generateKasPdfReport } from '../utils/pdfGenerator';
-import { formatRupiah } from '../utils/formatters';
+import { formatRupiah, formatDateIndo } from '../utils/formatters';
 
 interface PdfExportModalProps {
   isOpen: boolean;
@@ -32,6 +32,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   const [endDate, setEndDate] = useState<string>('');
   const [fundType, setFundType] = useState<'all' | FundType>('all');
   const [txType, setTxType] = useState<'all' | 'in' | 'out'>('all');
+  const [printDate, setPrintDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [isGenerating, setIsGenerating] = useState(false);
 
   if (!isOpen) return null;
@@ -112,8 +113,9 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         config,
         periodLabel: getPeriodLabel(),
         fundTypeLabel: getFundLabel(),
+        printDate,
       });
-      const filename = `Laporan_Kas_DKM_Al-Ikhlas_Pokek_${period}_${Date.now()}.pdf`;
+      const filename = `Laporan_Kas_DKM_Al-Ikhlas_Pokek_${period}_${printDate}.pdf`;
       doc.save(filename);
       onClose();
     } catch (err) {
@@ -131,6 +133,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         config,
         periodLabel: getPeriodLabel(),
         fundTypeLabel: getFundLabel(),
+        printDate,
       });
       const blobUrl = doc.output('bloburl');
       window.open(blobUrl, '_blank');
@@ -296,6 +299,37 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 <option value="out">Hanya Pengeluaran (-)</option>
               </select>
             </div>
+          </div>
+
+          {/* Pilihan Tanggal Cetak / Pengesahan Laporan */}
+          <div className="p-3.5 bg-emerald-50/80 border border-emerald-300 rounded-2xl space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+                Tanggal Cetak / Pengesahan Dokumen:
+              </label>
+              {printDate !== new Date().toISOString().slice(0, 10) && (
+                <button
+                  type="button"
+                  onClick={() => setPrintDate(new Date().toISOString().slice(0, 10))}
+                  className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                >
+                  Set ke Hari Ini
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <input
+                type="date"
+                value={printDate}
+                onChange={(e) => setPrintDate(e.target.value)}
+                className="w-full text-xs font-semibold bg-white border border-emerald-400 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
+            </div>
+            <p className="text-[11px] text-emerald-800 flex items-center justify-between">
+              <span>Tertulis pada tanda tangan:</span>
+              <strong className="text-emerald-950">Kawunganten, {formatDateIndo(printDate)}</strong>
+            </p>
           </div>
 
           {/* Report Summary Preview */}

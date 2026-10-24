@@ -9,15 +9,18 @@ import {
   LogOut,
   Calendar,
   MapPin,
-  CheckCircle2
+  CheckCircle2,
+  UserCheck,
+  UserPlus,
+  ShieldCheck
 } from 'lucide-react';
-import { AppConfig } from '../types';
+import { AdminAccount, AppConfig } from '../types';
 import { DEFAULT_LOGO_SVG } from '../utils/logo';
 import { formatDateIndo } from '../utils/formatters';
 
 interface HeaderProps {
   config: AppConfig;
-  isAuthenticated: boolean;
+  currentAdmin: AdminAccount | null;
   onOpenAuth: () => void;
   onLogout: () => void;
   onOpenAddModal: () => void;
@@ -27,7 +30,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   config,
-  isAuthenticated,
+  currentAdmin,
   onOpenAuth,
   onLogout,
   onOpenAddModal,
@@ -58,15 +61,15 @@ export const Header: React.FC<HeaderProps> = ({
               <Calendar className="w-3.5 h-3.5 text-amber-400" />
               <span>{todayStr}</span>
             </div>
-            {isAuthenticated ? (
-              <span className="inline-flex items-center gap-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded text-[11px] font-semibold">
-                <Unlock className="w-3 h-3 text-amber-400" />
-                Mode Petugas Aktif
+            {currentAdmin ? (
+              <span className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded text-[11px] font-semibold">
+                <UserCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>Petugas: <strong>{currentAdmin.fullName}</strong> ({currentAdmin.roleLabel})</span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-slate-300 text-[11px]">
                 <Lock className="w-3 h-3 text-slate-400" />
-                Akses Umum
+                Akses Publik / Jamaah
               </span>
             )}
           </div>
@@ -133,8 +136,8 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Cetak Laporan PDF</span>
             </button>
 
-            {/* Add Transaction Button (If authenticated: adds directly; if not: opens password modal) */}
-            {isAuthenticated ? (
+            {/* Add Transaction Button & Admin Controls */}
+            {currentAdmin ? (
               <>
                 <button
                   onClick={onOpenAddModal}
@@ -146,31 +149,33 @@ export const Header: React.FC<HeaderProps> = ({
 
                 <button
                   onClick={onOpenSettings}
-                  className="inline-flex items-center gap-1.5 bg-emerald-800/80 hover:bg-emerald-700/80 text-emerald-100 px-3 py-2.5 rounded-xl border border-emerald-600/50 transition-all active:scale-95 text-sm cursor-pointer"
-                  title="Pengaturan Masjid & Kata Sandi"
+                  className="inline-flex items-center gap-1.5 bg-emerald-800/80 hover:bg-emerald-700/80 text-emerald-100 px-3.5 py-2.5 rounded-xl border border-emerald-600/50 transition-all active:scale-95 text-sm cursor-pointer"
+                  title="Kelola Akun Admin & Pengaturan Masjid"
                 >
                   <Settings className="w-4 h-4 text-emerald-300" />
-                  <span className="hidden lg:inline">Pengaturan</span>
+                  <span className="hidden lg:inline">Kelola Admin & Data</span>
                 </button>
 
                 <button
                   onClick={onLogout}
                   className="inline-flex items-center gap-1.5 bg-rose-900/60 hover:bg-rose-800/80 text-rose-200 px-3 py-2.5 rounded-xl border border-rose-700/50 transition-all active:scale-95 text-sm cursor-pointer"
-                  title="Keluar dari Akses Petugas"
+                  title="Keluar dari Akun Admin"
                 >
                   <LogOut className="w-4 h-4 text-rose-300" />
                   <span className="hidden lg:inline">Keluar</span>
                 </button>
               </>
             ) : (
-              <button
-                onClick={onOpenAuth}
-                className="inline-flex items-center gap-2 bg-emerald-800/90 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-xl border border-emerald-500/50 shadow-md transition-all active:scale-95 text-sm cursor-pointer"
-                title="Masuk menggunakan kata sandi petugas kas"
-              >
-                <Lock className="w-4 h-4 text-amber-400" />
-                <span>Masuk Petugas Kas</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onOpenAuth}
+                  className="inline-flex items-center gap-2 bg-emerald-800/90 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-xl border border-emerald-500/50 shadow-md transition-all active:scale-95 text-sm cursor-pointer"
+                  title="Masuk menggunakan akun petugas kas"
+                >
+                  <Lock className="w-4 h-4 text-amber-400" />
+                  <span>Masuk Akun Admin</span>
+                </button>
+              </div>
             )}
           </div>
         </div>

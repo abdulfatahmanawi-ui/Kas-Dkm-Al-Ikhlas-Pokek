@@ -16,6 +16,22 @@ export interface Transaction {
   recordedBy?: string;
 }
 
+export type AdminRole = 'superadmin' | 'bendahara' | 'ketua' | 'petugas';
+
+export interface AdminAccount {
+  id: string;
+  username: string; // e.g. "admin", "bendahara"
+  fullName: string; // e.g. "Abdul Fatah", "Bpk. Ridwan Fauzi"
+  role: AdminRole;
+  roleLabel: string; // "Administrator Utama", "Bendahara DKM", dll.
+  password: string;
+  email?: string;
+  phone?: string;
+  avatarColor?: string;
+  createdAt: number;
+  lastLoginAt?: number;
+}
+
 export interface AppConfig {
   mosqueName: string;
   locationDetails: string;

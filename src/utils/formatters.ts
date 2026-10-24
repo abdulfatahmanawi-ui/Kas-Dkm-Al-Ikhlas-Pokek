@@ -47,36 +47,53 @@ export const getMonthName = (monthIndex: number): string => {
   return months[monthIndex] || '';
 };
 
-export const terbilang = (angka: number): string => {
+const bilangAngka = (n: number): string => {
   const bilangan = [
     '', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima',
     'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'
   ];
 
-  let hasil = '';
-  const n = Math.abs(Math.floor(angka));
-
-  if (n < 12) {
-    hasil = ' ' + bilangan[n];
-  } else if (n < 20) {
-    hasil = terbilang(n - 10) + ' Belas';
-  } else if (n < 100) {
-    hasil = terbilang(Math.floor(n / 10)) + ' Puluh' + terbilang(n % 10);
-  } else if (n < 200) {
-    hasil = ' Seratus' + terbilang(n - 100);
-  } else if (n < 1000) {
-    hasil = terbilang(Math.floor(n / 100)) + ' Ratus' + terbilang(n % 100);
-  } else if (n < 2000) {
-    hasil = ' Seribu' + terbilang(n - 100);
-  } else if (n < 1000000) {
-    hasil = terbilang(Math.floor(n / 1000)) + ' Ribu' + terbilang(n % 1000);
-  } else if (n < 1000000000) {
-    hasil = terbilang(Math.floor(n / 1000000)) + ' Juta' + terbilang(n % 1000000);
-  } else if (n < 1000000000000) {
-    hasil = terbilang(Math.floor(n / 1000000000)) + ' Milyar' + terbilang(n % 1000000000);
+  const val = Math.floor(n);
+  if (val < 12) {
+    return bilangan[val];
+  } else if (val < 20) {
+    return bilangAngka(val - 10) + ' Belas';
+  } else if (val < 100) {
+    const sisa = val % 10;
+    return bilangAngka(Math.floor(val / 10)) + ' Puluh' + (sisa ? ' ' + bilangAngka(sisa) : '');
+  } else if (val < 200) {
+    const sisa = val - 100;
+    return 'Seratus' + (sisa ? ' ' + bilangAngka(sisa) : '');
+  } else if (val < 1000) {
+    const sisa = val % 100;
+    return bilangAngka(Math.floor(val / 100)) + ' Ratus' + (sisa ? ' ' + bilangAngka(sisa) : '');
+  } else if (val < 2000) {
+    const sisa = val - 1000;
+    return 'Seribu' + (sisa ? ' ' + bilangAngka(sisa) : '');
+  } else if (val < 1000000) {
+    const sisa = val % 1000;
+    return bilangAngka(Math.floor(val / 1000)) + ' Ribu' + (sisa ? ' ' + bilangAngka(sisa) : '');
+  } else if (val < 1000000000) {
+    const sisa = val % 1000000;
+    return bilangAngka(Math.floor(val / 1000000)) + ' Juta' + (sisa ? ' ' + bilangAngka(sisa) : '');
+  } else if (val < 1000000000000) {
+    const sisa = val % 1000000000;
+    return bilangAngka(Math.floor(val / 1000000000)) + ' Miliar' + (sisa ? ' ' + bilangAngka(sisa) : '');
+  } else if (val < 1000000000000000) {
+    const sisa = val % 1000000000000;
+    return bilangAngka(Math.floor(val / 1000000000000)) + ' Triliun' + (sisa ? ' ' + bilangAngka(sisa) : '');
   }
 
-  return (hasil.trim() + ' Rupiah').replace(/\s+/g, ' ');
+  return '';
+};
+
+export const terbilang = (angka: number): string => {
+  if (isNaN(angka)) return 'Nol Rupiah';
+  const n = Math.abs(Math.floor(angka));
+  if (n === 0) return 'Nol Rupiah';
+
+  const kata = bilangAngka(n).trim().replace(/\s+/g, ' ');
+  return `${kata} Rupiah`;
 };
 
 export const DEFAULT_INCOME_CATEGORIES = [

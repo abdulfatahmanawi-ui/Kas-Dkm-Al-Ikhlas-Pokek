@@ -11,7 +11,7 @@ import {
   Hash,
   CheckCircle2
 } from 'lucide-react';
-import { FundType, Transaction, TransactionType } from '../types';
+import { AdminAccount, FundType, Transaction, TransactionType } from '../types';
 import { 
   DEFAULT_EXPENSE_CATEGORIES, 
   DEFAULT_INCOME_CATEGORIES, 
@@ -25,6 +25,7 @@ interface TransactionModalProps {
   onSave: (tx: Omit<Transaction, 'id' | 'createdAt'>, existingId?: string) => void;
   initialData?: Transaction | null;
   suggestedReceiptNumber: string;
+  currentAdmin?: AdminAccount | null;
 }
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({
@@ -33,6 +34,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   onSave,
   initialData,
   suggestedReceiptNumber,
+  currentAdmin,
 }) => {
   const [type, setType] = useState<TransactionType>('in');
   const [amountStr, setAmountStr] = useState<string>('');
@@ -122,7 +124,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       description: description.trim(),
       donorName: donorName.trim() || (type === 'in' ? 'Jamaah Dusun Pokek' : '-'),
       receiptNumber: receiptNumber.trim() || suggestedReceiptNumber,
-      recordedBy: 'Pengurus Kas DKM'
+      recordedBy: currentAdmin ? `${currentAdmin.fullName} (${currentAdmin.roleLabel})` : 'Pengurus Kas DKM'
     }, initialData?.id);
 
     onClose();

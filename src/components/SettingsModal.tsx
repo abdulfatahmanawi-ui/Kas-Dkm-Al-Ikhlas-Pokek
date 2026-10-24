@@ -11,9 +11,16 @@ import {
   RotateCcw,
   CheckCircle2,
   AlertTriangle,
-  Image as ImageIcon
+  Image as ImageIcon,
+  UserPlus,
+  Trash2,
+  Edit2,
+  ShieldCheck,
+  UserCheck,
+  Mail,
+  Briefcase
 } from 'lucide-react';
-import { AppConfig, Transaction } from '../types';
+import { AdminAccount, AdminRole, AppConfig, Transaction } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -23,6 +30,10 @@ interface SettingsModalProps {
   transactions: Transaction[];
   onRestoreTransactions: (importedTransactions: Transaction[]) => void;
   onResetTransactions: () => void;
+  adminAccounts: AdminAccount[];
+  onSaveAdmins: (admins: AdminAccount[]) => void;
+  currentAdmin: AdminAccount | null;
+  onUpdateCurrentAdmin?: (admin: AdminAccount) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -33,59 +44,174 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   transactions,
   onRestoreTransactions,
   onResetTransactions,
+  adminAccounts,
+  onSaveAdmins,
+  currentAdmin,
+  onUpdateCurrentAdmin,
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'backup'>('profile');
+  const [activeTab, setActiveTab] = useState<'admins' | 'profile' | 'backup'>('admins');
   const [formData, setFormData] = useState<AppConfig>({ ...config });
 
-  // Password state
-  const [oldPassword, setOldPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [pwdMsg, setPwdMsg] = useState<{ text: string; isError: boolean } | null>(null);
+  // State for adding/editing admin
+  const [isAddingAdmin, setIsAddingAdmin] = useState(false);
+  const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
+  
+  const [adminForm, setAdminForm] = useState<{
+    fullName: string;
+    username: string;
+    role: AdminRole;
+    email: string;
+    password: string;
+  }>({
+    fullName: '',
+    username: '',
+    role: 'petugas',
+    email: '',
+    password: '',
+  });
 
+  const [adminError, setAdminError] = useState('');
   const [notification, setNotification] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
+  const showNotification = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => setNotification(null), 3500);
+  };
+
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSaveConfig(formData);
-    setNotification('Data masjid & pengurus berhasil disimpan!');
-    setTimeout(() => setNotification(null), 3000);
+    showNotification('Data masjid & pengurus berhasil disimpan!');
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleOpenAddAdmin = () => {
+    setEditingAdminId(null);
+    setAdminForm({
+      fullName: '',
+      username: '',
+      role: 'petugas',
+      email: '',
+      password: '',
+    });
+    setAdminError('');
+    setIsAddingAdmin(true);
+  };
+
+  const handleOpenEditAdmin = (acc: AdminAccount) => {
+    setIsAddingAdmin(false);
+    setEditingAdminId(acc.id);
+    setAdminForm({
+      fullName: acc.fullName,
+      username: acc.username,
+      role: acc.role,
+      email: acc.email || '',
+      password: acc.password,
+    });
+    setAdminError('');
+  };
+
+  const handleSaveAdminForm = (e: React.FormEvent) => {
     e.preventDefault();
-    setPwdMsg(null);
+    setAdminError('');
 
-    if (oldPassword !== config.adminPassword) {
-      setPwdMsg({ text: 'Kata sandi lama salah!', isError: true });
+    if (!adminForm.fullName.trim()) {
+      setAdminError('Nama lengkap pengurus wajib diisi');
       return;
     }
-    if (newPassword.length < 4) {
-      setPwdMsg({ text: 'Kata sandi baru minimal 4 karakter!', isError: true });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPwdMsg({ text: 'Konfirmasi sandi baru tidak cocok!', isError: true });
+    const cleanUsername = adminForm.username.trim().toLowerCase().replace(/\s+/g, '_');
+    if (!cleanUsername || cleanUsername.length < 3) {
+      setAdminError('Username minimal 3 karakter tanpa spasi');
       return;
     }
 
-    const updated = { ...config, adminPassword: newPassword };
-    onSaveConfig(updated);
-    setFormData(updated);
-    setOldPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setPwdMsg({ text: 'Kata sandi berhasil diperbarui!', isError: false });
+    // Check duplicate username if adding or changing username
+    const duplicate = adminAccounts.find(
+      (a) => a.username.toLowerCase() === cleanUsername && a.id !== editingAdminId
+    );
+    if (duplicate) {
+      setAdminError(`Username "${cleanUsername}" sudah digunakan akun lain!`);
+      return;
+    }
+
+    if (!adminForm.password || adminForm.password.length < 4) {
+      setAdminError('Kata sandi minimal 4 karakter');
+      return;
+    }
+
+    const roleLabels: Record<AdminRole, string> = {
+      superadmin: 'Administrator Utama',
+      bendahara: 'Bendahara Kas DKM',
+      ketua: 'Ketua DKM Al-Ikhlas',
+      petugas: 'Petugas Pencatat Kas',
+    };
+
+    if (editingAdminId) {
+      // Edit existing
+      const updated = adminAccounts.map((a) => {
+        if (a.id === editingAdminId) {
+          const mod: AdminAccount = {
+            ...a,
+            fullName: adminForm.fullName.trim(),
+            username: cleanUsername,
+            role: adminForm.role,
+            roleLabel: roleLabels[adminForm.role],
+            email: adminForm.email.trim() || undefined,
+            password: adminForm.password,
+          };
+          if (currentAdmin && currentAdmin.id === a.id && onUpdateCurrentAdmin) {
+            onUpdateCurrentAdmin(mod);
+          }
+          return mod;
+        }
+        return a;
+      });
+      onSaveAdmins(updated);
+      setEditingAdminId(null);
+      showNotification('Akun admin berhasil diperbarui!');
+    } else {
+      // Add new
+      const newAcc: AdminAccount = {
+        id: 'admin-' + Date.now(),
+        fullName: adminForm.fullName.trim(),
+        username: cleanUsername,
+        role: adminForm.role,
+        roleLabel: roleLabels[adminForm.role],
+        email: adminForm.email.trim() || undefined,
+        password: adminForm.password,
+        createdAt: Date.now(),
+      };
+      onSaveAdmins([...adminAccounts, newAcc]);
+      setIsAddingAdmin(false);
+      showNotification(`Akun admin "${newAcc.fullName}" berhasil ditambahkan!`);
+    }
+  };
+
+  const handleDeleteAdmin = (id: string, name: string) => {
+    if (adminAccounts.length <= 1) {
+      alert('Tidak dapat menghapus! Minimal harus ada 1 akun admin aktif.');
+      return;
+    }
+    if (currentAdmin && currentAdmin.id === id) {
+      alert('Anda sedang masuk dengan akun ini. Silakan keluar atau gunakan akun lain untuk menghapusnya.');
+      return;
+    }
+
+    if (confirm(`Yakin ingin menghapus akun admin "${name}"?`)) {
+      const filtered = adminAccounts.filter((a) => a.id !== id);
+      onSaveAdmins(filtered);
+      showNotification(`Akun "${name}" telah dihapus.`);
+    }
   };
 
   // Export JSON
   const handleExportBackup = () => {
     const backupData = {
-      version: '1.0',
+      version: '1.2',
       exportedAt: new Date().toISOString(),
       config,
+      adminAccounts,
       transactions,
     };
     const jsonStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2));
@@ -109,10 +235,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (parsed.transactions && Array.isArray(parsed.transactions)) {
           onRestoreTransactions(parsed.transactions);
           if (parsed.config) {
-            onSaveConfig({ ...DEFAULT_CONFIG_FALLBACK, ...parsed.config });
-            setFormData({ ...DEFAULT_CONFIG_FALLBACK, ...parsed.config });
+            onSaveConfig({ ...config, ...parsed.config });
+            setFormData({ ...config, ...parsed.config });
           }
-          alert(`Berhasil memulihkan ${parsed.transactions.length} data transaksi kas!`);
+          if (parsed.adminAccounts && Array.isArray(parsed.adminAccounts)) {
+            onSaveAdmins(parsed.adminAccounts);
+          }
+          alert(`Berhasil memulihkan ${parsed.transactions.length} data transaksi dan akun admin!`);
           onClose();
         } else {
           alert('Format file JSON tidak valid!');
@@ -124,9 +253,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     reader.readAsText(file);
   };
 
-  const DEFAULT_CONFIG_FALLBACK = config;
-
-  // Handle Logo Upload (Optional user replacement)
+  // Handle Logo Upload
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -141,13 +268,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
       <div 
-        className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden my-8 animate-fade-in"
+        className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6 animate-fade-in"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white">
               <Settings className="w-5 h-5" />
             </div>
             <div>
@@ -155,13 +282,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 Pengaturan Sistem Kas DKM Al-Ikhlas
               </h3>
               <p className="text-[11px] text-slate-400">
-                Profil Masjid, Pengurus, Kata Sandi & Cadangan Data
+                Kelola Akun Admin, Profil Masjid Pokek RW 004, & Cadangan Data
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-white/10"
+            className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-white/10 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -171,47 +298,263 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="flex border-b border-slate-200 bg-slate-50 text-xs font-semibold">
           <button
             type="button"
+            onClick={() => setActiveTab('admins')}
+            className={`flex-1 py-3 px-4 border-b-2 text-center flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'admins'
+                ? 'border-emerald-600 text-emerald-800 bg-white font-bold'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Users className="w-4 h-4 text-emerald-600" />
+            <span>Kelola Akun Admin ({adminAccounts.length})</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('profile')}
-            className={`flex-1 py-3 px-4 border-b-2 text-center transition-all ${
+            className={`flex-1 py-3 px-4 border-b-2 text-center flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'profile'
                 ? 'border-emerald-600 text-emerald-800 bg-white font-bold'
                 : 'border-transparent text-slate-600 hover:text-slate-900'
             }`}
           >
-            Profil Masjid & Kop PDF
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('password')}
-            className={`flex-1 py-3 px-4 border-b-2 text-center transition-all ${
-              activeTab === 'password'
-                ? 'border-emerald-600 text-emerald-800 bg-white font-bold'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Ganti Kata Sandi
+            <Building2 className="w-4 h-4 text-emerald-600" />
+            <span>Profil Masjid & Kop</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('backup')}
-            className={`flex-1 py-3 px-4 border-b-2 text-center transition-all ${
+            className={`flex-1 py-3 px-4 border-b-2 text-center flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'backup'
                 ? 'border-emerald-600 text-emerald-800 bg-white font-bold'
                 : 'border-transparent text-slate-600 hover:text-slate-900'
             }`}
           >
-            Cadangan & Pulihkan
+            <Database className="w-4 h-4 text-emerald-600" />
+            <span>Cadangan & Pulihkan</span>
           </button>
         </div>
 
         {notification && (
           <div className="bg-emerald-50 text-emerald-800 px-5 py-2.5 text-xs font-semibold flex items-center gap-2 border-b border-emerald-200">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            {notification}
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{notification}</span>
           </div>
         )}
 
-        {/* Tab 1: Profile & Kop PDF */}
+        {/* TAB 1: KELOLA AKUN ADMIN */}
+        {activeTab === 'admins' && (
+          <div className="p-6 space-y-4">
+            
+            {/* Action Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm">
+                  Daftar Akun Pengurus & Petugas Kas
+                </h4>
+                <p className="text-xs text-slate-500">
+                  Akun yang berhak mencatat, mengedit, dan menghapus transaksi kas masjid.
+                </p>
+              </div>
+
+              {!isAddingAdmin && !editingAdminId && (
+                <button
+                  type="button"
+                  onClick={handleOpenAddAdmin}
+                  className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition-all active:scale-95 cursor-pointer shrink-0"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>+ Buat Akun Admin</span>
+                </button>
+              )}
+            </div>
+
+            {/* Form for Add / Edit Admin */}
+            {(isAddingAdmin || editingAdminId) && (
+              <form onSubmit={handleSaveAdminForm} className="bg-slate-50 border border-emerald-300 rounded-2xl p-4.5 space-y-3.5 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-emerald-900 flex items-center gap-1.5">
+                    <UserCheck className="w-4 h-4 text-emerald-600" />
+                    {editingAdminId ? 'Ubah Data Akun Admin' : 'Form Pembuatan Akun Admin Baru'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { setIsAddingAdmin(false); setEditingAdminId(null); }}
+                    className="text-xs text-slate-400 hover:text-slate-600 font-medium"
+                  >
+                    Batal
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Nama Lengkap Pengurus: *
+                    </label>
+                    <input
+                      type="text"
+                      value={adminForm.fullName}
+                      onChange={(e) => setAdminForm({ ...adminForm, fullName: e.target.value })}
+                      placeholder="Contoh: Abdul Fatah / Bpk. Fulan"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Username: *
+                    </label>
+                    <input
+                      type="text"
+                      value={adminForm.username}
+                      onChange={(e) => setAdminForm({ ...adminForm, username: e.target.value.toLowerCase() })}
+                      placeholder="admin_pokek"
+                      className="w-full px-3 py-2 font-mono bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Jabatan / Peran: *
+                    </label>
+                    <select
+                      value={adminForm.role}
+                      onChange={(e) => setAdminForm({ ...adminForm, role: e.target.value as AdminRole })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="superadmin">Administrator Utama</option>
+                      <option value="bendahara">Bendahara Kas DKM</option>
+                      <option value="ketua">Ketua DKM Al-Ikhlas</option>
+                      <option value="petugas">Petugas Pencatat Kas</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Kata Sandi: *
+                    </label>
+                    <input
+                      type="text"
+                      value={adminForm.password}
+                      onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
+                      placeholder="Minimal 4 karakter"
+                      className="w-full px-3 py-2 font-mono bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Email (Opsional):
+                    </label>
+                    <input
+                      type="email"
+                      value={adminForm.email}
+                      onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
+                      placeholder="pengurus@gmail.com"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {adminError && (
+                  <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
+                    {adminError}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => { setIsAddingAdmin(false); setEditingAdminId(null); }}
+                    className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 bg-slate-200 hover:bg-slate-300 rounded-xl"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 rounded-xl shadow-sm"
+                  >
+                    Simpan Akun Admin
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* List of Admin Accounts */}
+            <div className="space-y-2.5">
+              {adminAccounts.map((acc) => {
+                const isCurrent = currentAdmin?.id === acc.id || currentAdmin?.username === acc.username;
+
+                return (
+                  <div 
+                    key={acc.id} 
+                    className="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
+                        acc.role === 'superadmin' ? 'bg-emerald-100 text-emerald-800' :
+                        acc.role === 'bendahara' ? 'bg-amber-100 text-amber-800' :
+                        acc.role === 'ketua' ? 'bg-teal-100 text-teal-800' : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        {acc.fullName.charAt(0)}
+                      </div>
+
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                            {acc.fullName}
+                          </span>
+                          {isCurrent && (
+                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.2 rounded-full border border-emerald-300">
+                              Sedang Aktif
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                          <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                            {acc.roleLabel}
+                          </span>
+                          <span>•</span>
+                          <span className="font-mono text-slate-600">user: <strong>{acc.username}</strong></span>
+                          <span>•</span>
+                          <span className="font-mono text-slate-500">sandi: <strong>{acc.password}</strong></span>
+                          {acc.email && (
+                            <>
+                              <span>•</span>
+                              <span className="text-slate-400">{acc.email}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditAdmin(acc)}
+                        className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-colors cursor-pointer"
+                        title="Edit Akun Admin"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAdmin(acc.id, acc.fullName)}
+                        disabled={isCurrent || adminAccounts.length <= 1}
+                        className="p-2 text-slate-400 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+                        title={isCurrent ? "Tidak dapat menghapus akun yang sedang aktif" : "Hapus Akun Admin"}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: PROFIL MASJID & KOP PDF */}
         {activeTab === 'profile' && (
           <form onSubmit={handleProfileSubmit} className="p-6 space-y-4">
             <div className="space-y-3 text-xs">
@@ -273,6 +616,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     value={formData.regency}
                     onChange={(e) => setFormData({ ...formData, regency: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Kode Pos:
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.postalCode}
+                    onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                    placeholder="41266"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Nomor Kontak / WhatsApp DKM:
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.phone || ''}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="082323080878"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
                   />
                 </div>
               </div>
@@ -344,74 +714,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </form>
         )}
 
-        {/* Tab 2: Change Password */}
-        {activeTab === 'password' && (
-          <form onSubmit={handleChangePassword} className="p-6 space-y-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
-              Kata sandi ini digunakan pengurus untuk menambah, mengedit, atau menghapus transaksi kas masjid.
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Kata Sandi Lama:
-                </label>
-                <input
-                  type="password"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  placeholder="Masukkan sandi saat ini..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Kata Sandi Baru:
-                </label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Minimal 4 karakter..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Ulangi Sandi Baru:
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Ketik ulang sandi baru..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              {pwdMsg && (
-                <div className={`p-2.5 rounded-xl text-xs font-semibold ${
-                  pwdMsg.isError ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                }`}>
-                  {pwdMsg.text}
-                </div>
-              )}
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 flex justify-end">
-              <button
-                type="submit"
-                className="px-5 py-2.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 rounded-xl shadow cursor-pointer"
-              >
-                Perbarui Kata Sandi
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* Tab 3: Backup & Restore */}
+        {/* TAB 3: BACKUP & RESTORE */}
         {activeTab === 'backup' && (
           <div className="p-6 space-y-5 text-xs">
             {/* Export */}
@@ -421,7 +724,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span>Unduh File Cadangan (Backup JSON)</span>
               </div>
               <p className="text-slate-500 leading-relaxed">
-                Simpan seluruh rekaman transaksi kas ({transactions.length} data) ke file JSON di komputer atau HP Anda agar data aman.
+                Simpan seluruh data kas ({transactions.length} transaksi) dan akun admin ({adminAccounts.length} akun) ke file JSON di perangkat Anda.
               </p>
               <button
                 type="button"
@@ -429,7 +732,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="mt-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                <span>Unduh Backup Kas (.json)</span>
+                <span>Unduh Backup Lengkap (.json)</span>
               </button>
             </div>
 
@@ -440,7 +743,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span>Pulihkan Data dari File Cadangan (Restore)</span>
               </div>
               <p className="text-slate-500 leading-relaxed">
-                Pilih file JSON hasil backup sebelumnya untuk memulihkan seluruh data kas.
+                Pilih file JSON hasil backup sebelumnya untuk memulihkan seluruh data kas dan akun admin.
               </p>
               <label className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white font-bold rounded-xl shadow-sm transition-all cursor-pointer">
                 <Upload className="w-4 h-4" />
@@ -471,7 +774,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     alert('Data transaksi telah direset ke contoh awal.');
                   }
                 }}
-                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg text-xs"
+                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg text-xs cursor-pointer"
               >
                 Reset Transaksi
               </button>

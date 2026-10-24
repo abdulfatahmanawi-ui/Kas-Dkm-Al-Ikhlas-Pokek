@@ -11,6 +11,7 @@ interface GeneratePdfReportParams {
   fundTypeLabel: string;
   startDate?: string;
   endDate?: string;
+  printDate?: string;
 }
 
 export const generateKasPdfReport = async ({
@@ -18,6 +19,7 @@ export const generateKasPdfReport = async ({
   config,
   periodLabel,
   fundTypeLabel,
+  printDate,
 }: GeneratePdfReportParams): Promise<jsPDF> => {
   // Sort transactions chronologically
   const sorted = [...transactions].sort(
@@ -73,7 +75,7 @@ export const generateKasPdfReport = async ({
 
   doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Kontak Pengurus: ${config.phone || '0812-3456-7890'} | Dusun Pokek RW 004 Kawunganten`, pageWidth / 2 + 8, 30, { align: 'center' });
+  doc.text(`Kontak Pengurus: ${config.phone || '082323080878'} | Dusun Pokek RW 004 Kawunganten`, pageWidth / 2 + 8, 30, { align: 'center' });
 
   // Double decorative header rule
   doc.setDrawColor(6, 95, 70); // Deep emerald
@@ -239,7 +241,8 @@ export const generateKasPdfReport = async ({
     signatureY = 25;
   }
 
-  const currentDateIndo = formatDateIndo(new Date().toISOString().slice(0, 10));
+  const effectivePrintDate = printDate || new Date().toISOString().slice(0, 10);
+  const currentDateIndo = formatDateIndo(effectivePrintDate);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -361,11 +364,11 @@ export const generateSingleReceiptPdf = async (
   doc.setTextColor(71, 85, 105);
 
   const rows = [
-    { label: isIncome ? 'Telah Diterima Dari' : 'Dibayarkan Kepada', value: transaction.donorName || (isIncome ? 'Jamaah Dusun Pokek' : 'Pihak Terkait') },
-    { label: 'Uang Sejumlah', value: terbilang(transaction.amount), bold: true },
-    { label: 'Untuk Keperluan', value: transaction.description },
-    { label: 'Kategori Kas', value: `${transaction.category} (${transaction.fundType.toUpperCase()})` },
-    { label: 'Tanggal Transaksi', value: formatDateIndo(transaction.date) },
+    { label: isIncome ? 'Telah Diterima Dari' : 'Dibayarkan Kepada', value: transaction.donorName || (isIncome ? 'Jamaah Dusun Pokek' : 'Pihak Terkait'), isTerbilang: false },
+    { label: 'Uang Sejumlah', value: `# ${terbilang(transaction.amount)} #`, bold: true, isTerbilang: true },
+    { label: 'Untuk Keperluan', value: transaction.description, isTerbilang: false },
+    { label: 'Kategori Kas', value: `${transaction.category} (${transaction.fundType.toUpperCase()})`, isTerbilang: false },
+    { label: 'Tanggal Transaksi', value: formatDateIndo(transaction.date), isTerbilang: false },
   ];
 
   let curY = startY;
@@ -375,12 +378,23 @@ export const generateSingleReceiptPdf = async (
     doc.text(r.label, labelX, curY);
     doc.text(':', labelX + 35, curY);
 
-    doc.setFont('helvetica', r.bold ? 'bold' : 'normal');
-    doc.setTextColor(15, 23, 42);
-    // Wrap text if needed
-    const splitText = doc.splitTextToSize(r.value, 85);
-    doc.text(splitText, valX, curY);
-    curY += Math.max(6, splitText.length * 4.5);
+    if (r.isTerbilang) {
+      const splitText = doc.splitTextToSize(r.value, 96);
+      const boxH = Math.max(7, splitText.length * 4.2 + 2.5);
+      doc.setFillColor(240, 253, 244);
+      doc.setDrawColor(167, 243, 208);
+      doc.roundedRect(valX - 2, curY - 3.8, 100, boxH, 1, 1, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(6, 78, 59);
+      doc.text(splitText, valX, curY);
+      curY += boxH + 2;
+    } else {
+      doc.setFont('helvetica', r.bold ? 'bold' : 'normal');
+      doc.setTextColor(15, 23, 42);
+      const splitText = doc.splitTextToSize(r.value, 96);
+      doc.text(splitText, valX, curY);
+      curY += Math.max(6, splitText.length * 4.5);
+    }
   });
 
   // Amount badge Box

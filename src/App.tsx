@@ -14,15 +14,21 @@ import {
   PlusCircle, 
   Calendar,
   Share2,
-  CheckCircle2
+  CheckCircle2,
+  UserCheck,
+  Users
 } from 'lucide-react';
-import { AppConfig, FilterOptions, FundType, Transaction } from './types';
+import { AdminAccount, AppConfig, FilterOptions, FundType, Transaction } from './types';
 import { 
   DEFAULT_CONFIG, 
   INITIAL_TRANSACTIONS, 
   generateReceiptNumber, 
+  loadStoredAdmins,
+  loadStoredActiveAdmin,
   loadStoredConfig, 
   loadStoredTransactions, 
+  saveStoredAdmins,
+  saveStoredActiveAdmin,
   saveStoredConfig, 
   saveStoredTransactions 
 } from './utils/storage';
@@ -39,7 +45,10 @@ import { SettingsModal } from './components/SettingsModal';
 export default function App() {
   const [config, setConfig] = useState<AppConfig>(loadStoredConfig);
   const [transactions, setTransactions] = useState<Transaction[]>(loadStoredTransactions);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>(loadStoredAdmins);
+  const [currentAdmin, setCurrentAdmin] = useState<AdminAccount | null>(() => {
+    return loadStoredActiveAdmin(loadStoredAdmins());
+  });
 
   // Filter state
   const [filters, setFilters] = useState<FilterOptions>({
@@ -70,6 +79,14 @@ export default function App() {
     saveStoredConfig(config);
   }, [config]);
 
+  useEffect(() => {
+    saveStoredAdmins(adminAccounts);
+  }, [adminAccounts]);
+
+  useEffect(() => {
+    saveStoredActiveAdmin(currentAdmin);
+  }, [currentAdmin]);
+
   // Filtered transactions calculation
   const filteredTransactions = useMemo(() => {
     const now = new Date();
@@ -85,7 +102,8 @@ export default function App() {
           const matchDonor = tx.donorName?.toLowerCase().includes(q);
           const matchReceipt = tx.receiptNumber.toLowerCase().includes(q);
           const matchCategory = tx.category.toLowerCase().includes(q);
-          if (!matchDesc && !matchDonor && !matchReceipt && !matchCategory) return false;
+          const matchRecorder = tx.recordedBy?.toLowerCase().includes(q);
+          if (!matchDesc && !matchDonor && !matchReceipt && !matchCategory && !matchRecorder) return false;
         }
 
         // Type filter
@@ -130,7 +148,7 @@ export default function App() {
 
   // Actions
   const handleOpenAddModal = () => {
-    if (!isAuthenticated) {
+    if (!currentAdmin) {
       setIsAuthModalOpen(true);
       return;
     }
@@ -139,7 +157,7 @@ export default function App() {
   };
 
   const handleEditTransaction = (tx: Transaction) => {
-    if (!isAuthenticated) {
+    if (!currentAdmin) {
       setIsAuthModalOpen(true);
       return;
     }
@@ -148,7 +166,7 @@ export default function App() {
   };
 
   const handleDeleteTransaction = (id: string) => {
-    if (!isAuthenticated) {
+    if (!currentAdmin) {
       setIsAuthModalOpen(true);
       return;
     }
@@ -215,15 +233,31 @@ export default function App() {
     handleFilterChange({ fundType: fund });
   };
 
+  const handleAdminLogin = (admin: AdminAccount) => {
+    setCurrentAdmin(admin);
+    // Update lastLoginAt
+    setAdminAccounts((prev) =>
+      prev.map((a) => (a.id === admin.id ? { ...a, lastLoginAt: Date.now() } : a))
+    );
+  };
+
+  const handleAdminLogout = () => {
+    setCurrentAdmin(null);
+  };
+
+  const handleRegisterAdmin = (newAdmin: AdminAccount) => {
+    setAdminAccounts((prev) => [...prev, newAdmin]);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col selection:bg-emerald-200 selection:text-emerald-900">
       
-      {/* 1. Header with Mosque Logo and Info */}
+      {/* 1. Header with Mosque Logo and Admin Info */}
       <Header
         config={config}
-        isAuthenticated={isAuthenticated}
+        currentAdmin={currentAdmin}
         onOpenAuth={() => setIsAuthModalOpen(true)}
-        onLogout={() => setIsAuthenticated(false)}
+        onLogout={handleAdminLogout}
         onOpenAddModal={handleOpenAddModal}
         onOpenPdfModal={() => setIsPdfModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
@@ -247,14 +281,26 @@ export default function App() {
               </p>
             </div>
 
-            {/* Quick action button for PDF */}
-            <button
-              onClick={() => setIsPdfModalOpen(true)}
-              className="shrink-0 bg-white/10 hover:bg-white/20 text-white border border-white/20 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur"
-            >
-              <FileText className="w-4 h-4 text-amber-300" />
-              <span>Unduh Laporan PDF</span>
-            </button>
+            {/* Quick action buttons */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setIsPdfModalOpen(true)}
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur"
+              >
+                <FileText className="w-4 h-4 text-amber-300" />
+                <span>Unduh Laporan PDF</span>
+              </button>
+
+              {!currentAdmin && (
+                <button
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                >
+                  <Lock className="w-3.5 h-3.5 text-slate-950" />
+                  <span>Masuk Admin</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -277,14 +323,14 @@ export default function App() {
         {/* 5. Transactions Table / List */}
         <TransactionList
           transactions={filteredTransactions}
-          isAuthenticated={isAuthenticated}
+          isAuthenticated={!!currentAdmin}
           onEdit={handleEditTransaction}
           onDelete={handleDeleteTransaction}
           onViewReceipt={handleViewReceipt}
           onOpenAddModal={handleOpenAddModal}
         />
 
-        {/* Informative Notice for Jamaah */}
+        {/* Informative Notice for Jamaah & Admin */}
         <div className="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-200/80 text-xs text-emerald-950 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
@@ -292,22 +338,33 @@ export default function App() {
             </div>
             <div>
               <p className="font-bold">
-                Transparansi & Akuntabilitas Kas Masjid Al-Ikhlas
+                Transparansi & Akuntabilitas Kas Masjid Al-Ikhlas Pokek RW 004
               </p>
               <p className="text-emerald-800 text-[11px]">
-                Seluruh jamaah Dusun Pokek dapat memantau dan mencetak laporan kas kapan saja.
-                Untuk pencatatan infaq atau donasi, hubungi Bendahara DKM di Dusun Pokek RW 004.
+                {currentAdmin ? (
+                  <span>Anda masuk sebagai <strong>{currentAdmin.fullName}</strong> ({currentAdmin.roleLabel}). Setiap penambahan transaksi akan diaudit atas nama akun Anda.</span>
+                ) : (
+                  <span>Seluruh jamaah Dusun Pokek dapat memantau dan mencetak laporan kas kapan saja secara terbuka. Hak penambahan data dilindungi akun admin pengurus.</span>
+                )}
               </p>
             </div>
           </div>
 
-          {!isAuthenticated && (
+          {!currentAdmin ? (
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className="shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-300 transition-colors cursor-pointer"
+              className="shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-100 px-3.5 py-1.5 rounded-xl border border-emerald-300 transition-colors cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5 text-amber-600" />
-              <span>Akses Khusus Petugas (Sandi)</span>
+              <span>Masuk Akun Admin ({adminAccounts.length} Akun Terdaftar)</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-100 px-3.5 py-1.5 rounded-xl border border-emerald-300 transition-colors cursor-pointer"
+            >
+              <Users className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Kelola Akun Admin</span>
             </button>
           )}
         </div>
@@ -333,19 +390,19 @@ export default function App() {
               Cetak Laporan PDF
             </button>
             <span>•</span>
-            {isAuthenticated ? (
+            {currentAdmin ? (
               <button
-                onClick={() => setIsAuthenticated(false)}
+                onClick={handleAdminLogout}
                 className="text-rose-400 hover:text-rose-300 cursor-pointer"
               >
-                Keluar Mode Petugas
+                Keluar ({currentAdmin.fullName})
               </button>
             ) : (
               <button
                 onClick={() => setIsAuthModalOpen(true)}
                 className="text-emerald-400 hover:text-emerald-300 cursor-pointer"
               >
-                Masuk Petugas Kas
+                Masuk Akun Admin
               </button>
             )}
           </div>
@@ -356,8 +413,9 @@ export default function App() {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        correctPassword={config.adminPassword}
-        onSuccess={() => setIsAuthenticated(true)}
+        adminAccounts={adminAccounts}
+        onSuccess={handleAdminLogin}
+        onRegisterAdmin={handleRegisterAdmin}
       />
 
       <TransactionModal
@@ -369,6 +427,7 @@ export default function App() {
         onSave={handleSaveTransaction}
         initialData={editingTransaction}
         suggestedReceiptNumber={generateReceiptNumber(transactions)}
+        currentAdmin={currentAdmin}
       />
 
       <PdfExportModal
@@ -396,6 +455,10 @@ export default function App() {
         transactions={transactions}
         onRestoreTransactions={(newTx) => setTransactions(newTx)}
         onResetTransactions={() => setTransactions(INITIAL_TRANSACTIONS)}
+        adminAccounts={adminAccounts}
+        onSaveAdmins={(newAdmins) => setAdminAccounts(newAdmins)}
+        currentAdmin={currentAdmin}
+        onUpdateCurrentAdmin={(updated) => setCurrentAdmin(updated)}
       />
     </div>
   );

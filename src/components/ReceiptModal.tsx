@@ -112,10 +112,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <span className="text-slate-500">Uang Sejumlah</span>
-                <span className="col-span-2 font-semibold text-emerald-900 italic">
-                  : {terbilang(transaction.amount)}
+              <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-emerald-50/90 border border-emerald-200 items-start">
+                <span className="text-emerald-900 font-bold">Uang Sejumlah</span>
+                <span className="col-span-2 font-bold text-emerald-950 italic text-xs leading-relaxed">
+                  : &ldquo;{terbilang(transaction.amount)}&rdquo;
                 </span>
               </div>
 
