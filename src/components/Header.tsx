@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   UserCheck,
   UserPlus,
-  ShieldCheck
+  ShieldCheck,
+  Share2
 } from 'lucide-react';
 import { AdminAccount, AppConfig } from '../types';
 import { DEFAULT_LOGO_SVG } from '../utils/logo';
@@ -26,6 +27,7 @@ interface HeaderProps {
   onOpenAddModal: () => void;
   onOpenPdfModal: () => void;
   onOpenSettings: () => void;
+  onOpenShareModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -36,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAddModal,
   onOpenPdfModal,
   onOpenSettings,
+  onOpenShareModal,
 }) => {
   const todayStr = formatDateIndo(new Date().toISOString().slice(0, 10));
 
@@ -134,6 +137,16 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <FileText className="w-4 h-4 text-slate-950" />
               <span>Cetak Laporan PDF</span>
+            </button>
+
+            {/* Bagikan Link Transparansi Kas */}
+            <button
+              onClick={onOpenShareModal}
+              className="inline-flex items-center gap-2 bg-emerald-700/90 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl border border-emerald-500/50 shadow-md transition-all active:scale-95 text-sm cursor-pointer"
+              title="Bagikan Tautan Transparansi Kas ke Jamaah & WhatsApp"
+            >
+              <Share2 className="w-4 h-4 text-amber-300" />
+              <span>Bagikan Link</span>
             </button>
 
             {/* Add Transaction Button & Admin Controls */}

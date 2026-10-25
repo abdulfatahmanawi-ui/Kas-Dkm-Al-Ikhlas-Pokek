@@ -37,10 +37,10 @@ export const TransactionList: React.FC<TransactionListProps> = ({
           <Inbox className="w-8 h-8" />
         </div>
         <h3 className="text-base font-bold text-slate-800">
-          Belum Ada Transaksi yang Cocok
+          Belum Ada Catatan Transaksi Kas
         </h3>
         <p className="text-slate-500 text-xs max-w-sm mx-auto mt-1">
-          Tidak ditemukan catatan kas yang sesuai dengan kata kunci atau filter pencarian saat ini.
+          Buku kas DKM Al-Ikhlas siap digunakan. Belum ada catatan transaksi masuk atau keluar yang tersimpan.
         </p>
         {isAuthenticated && (
           <button

@@ -35,8 +35,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   
   // Login form state
-  const [usernameOrEmail, setUsernameOrEmail] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [usernameOrEmail, setUsernameOrEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -90,12 +90,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     } else {
       setErrorMessage('Username atau kata sandi tidak cocok. Silakan periksa kembali!');
     }
-  };
-
-  const handleSelectQuickAccount = (acc: AdminAccount) => {
-    setUsernameOrEmail(acc.username);
-    setPassword(acc.password);
-    setErrorMessage('');
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
@@ -210,39 +204,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Tab Content: LOGIN */}
         {activeTab === 'login' && (
           <div className="p-6">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-900 flex items-start gap-2.5">
-              <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="bg-emerald-50/80 border border-emerald-200/80 rounded-xl p-3.5 mb-5 text-xs text-emerald-950 flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <p className="leading-relaxed">
-                Pilih akun admin di bawah untuk pengisian cepat atau ketik username dan kata sandi Anda.
+                Silakan masukkan <strong>Username</strong> atau <strong>Email</strong> dan <strong>Kata Sandi</strong> akun pengurus Anda untuk mengakses hak pencatatan kas masjid.
               </p>
-            </div>
-
-            {/* Quick Account Picker */}
-            <div className="mb-4">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                Pilihan Akun Admin Terdaftar:
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {adminAccounts.map((acc) => {
-                  const isSelected = usernameOrEmail.toLowerCase() === acc.username.toLowerCase();
-                  return (
-                    <button
-                      key={acc.id}
-                      type="button"
-                      onClick={() => handleSelectQuickAccount(acc)}
-                      className={`text-left p-2.5 rounded-xl border text-xs transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20'
-                          : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div className="font-bold text-slate-800 truncate">{acc.fullName}</div>
-                      <div className="text-[10px] text-emerald-700 font-semibold">{acc.roleLabel}</div>
-                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">user: {acc.username}</div>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             <form onSubmit={handleLoginSubmit} className="space-y-3.5">

@@ -757,26 +757,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </label>
             </div>
 
-            {/* Reset to Default */}
+            {/* Empty Transactions */}
             <div className="p-4 bg-rose-50/70 rounded-2xl border border-rose-200 space-y-2">
               <div className="flex items-center gap-2 text-rose-800 font-bold">
                 <AlertTriangle className="w-4 h-4 text-rose-600" />
-                <span>Reset ke Data Contoh Awal</span>
+                <span>Kosongkan Seluruh Data Transaksi Kas</span>
               </div>
               <p className="text-rose-700 leading-relaxed text-[11px]">
-                Mengembalikan transaksi ke contoh bawaan Masjid DKM Al-Ikhlas Dusun Pokek RW 004.
+                Menghapus semua riwayat catatan pemasukan dan pengeluaran kas agar buku kas bersih kembali. Profil masjid dan akun admin tetap tersimpan.
               </p>
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm('Yakin ingin mereset transaksi ke data contoh awal?')) {
+                  if (confirm('Yakin ingin mengosongkan seluruh data transaksi kas? Tindakan ini tidak dapat dibatalkan kecuali Anda memiliki file backup.')) {
                     onResetTransactions();
-                    alert('Data transaksi telah direset ke contoh awal.');
+                    alert('Seluruh data transaksi kas telah berhasil dikosongkan.');
                   }
                 }}
                 className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg text-xs cursor-pointer"
               >
-                Reset Transaksi
+                Kosongkan Transaksi Kas
               </button>
             </div>
           </div>

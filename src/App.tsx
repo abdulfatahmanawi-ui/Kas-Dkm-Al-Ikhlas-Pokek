@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Building2, 
   Heart, 
@@ -16,7 +16,10 @@ import {
   Share2,
   CheckCircle2,
   UserCheck,
-  Users
+  Users,
+  RotateCw,
+  Wifi,
+  CloudCheck
 } from 'lucide-react';
 import { AdminAccount, AppConfig, FilterOptions, FundType, Transaction } from './types';
 import { 
@@ -32,6 +35,15 @@ import {
   saveStoredConfig, 
   saveStoredTransactions 
 } from './utils/storage';
+import { 
+  apiDeleteTransaction, 
+  apiResetDatabase, 
+  apiRestoreDatabase, 
+  apiSaveAdmins, 
+  apiSaveConfig, 
+  apiSaveTransaction, 
+  fetchSharedData 
+} from './utils/api';
 import { Header } from './components/Header';
 import { StatsOverview } from './components/StatsOverview';
 import { TransactionFilters } from './components/TransactionFilters';
@@ -41,6 +53,7 @@ import { TransactionModal } from './components/TransactionModal';
 import { PdfExportModal } from './components/PdfExportModal';
 import { ReceiptModal } from './components/ReceiptModal';
 import { SettingsModal } from './components/SettingsModal';
+import { ShareModal } from './components/ShareModal';
 
 export default function App() {
   const [config, setConfig] = useState<AppConfig>(loadStoredConfig);
@@ -49,6 +62,10 @@ export default function App() {
   const [currentAdmin, setCurrentAdmin] = useState<AdminAccount | null>(() => {
     return loadStoredActiveAdmin(loadStoredAdmins());
   });
+
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string>('Baru saja');
+  const [syncSuccess, setSyncSuccess] = useState<boolean>(true);
 
   // Filter state
   const [filters, setFilters] = useState<FilterOptions>({
@@ -69,20 +86,62 @@ export default function App() {
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [viewingReceiptTx, setViewingReceiptTx] = useState<Transaction | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
-  // Sync to storage
+  // Synchronize with centralized server
+  const syncWithServer = useCallback(async (showIndicator = true) => {
+    if (showIndicator) setIsSyncing(true);
+    try {
+      const serverData = await fetchSharedData();
+      if (serverData) {
+        if (Array.isArray(serverData.transactions)) {
+          setTransactions(serverData.transactions);
+          saveStoredTransactions(serverData.transactions);
+        }
+        if (serverData.config) {
+          setConfig(serverData.config);
+          saveStoredConfig(serverData.config);
+        }
+        if (Array.isArray(serverData.adminAccounts)) {
+          setAdminAccounts(serverData.adminAccounts);
+          saveStoredAdmins(serverData.adminAccounts);
+        }
+        setSyncSuccess(true);
+        const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLastSyncTime(timeStr);
+      }
+    } catch (err) {
+      console.warn('Sync warning:', err);
+    } finally {
+      if (showIndicator) {
+        setTimeout(() => setIsSyncing(false), 400);
+      }
+    }
+  }, []);
+
+  // Sync on initial mount & periodic polling
   useEffect(() => {
-    saveStoredTransactions(transactions);
-  }, [transactions]);
+    syncWithServer(true);
 
-  useEffect(() => {
-    saveStoredConfig(config);
-  }, [config]);
+    // Auto-poll every 12 seconds so shared links stay up to date across all devices
+    const interval = setInterval(() => {
+      syncWithServer(false);
+    }, 12000);
 
-  useEffect(() => {
-    saveStoredAdmins(adminAccounts);
-  }, [adminAccounts]);
+    // Sync on tab focus
+    const onFocus = () => syncWithServer(false);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') syncWithServer(false);
+    });
 
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [syncWithServer]);
+
+  // Sync active admin session to storage
   useEffect(() => {
     saveStoredActiveAdmin(currentAdmin);
   }, [currentAdmin]);
@@ -165,7 +224,7 @@ export default function App() {
     setIsTransactionModalOpen(true);
   };
 
-  const handleDeleteTransaction = (id: string) => {
+  const handleDeleteTransaction = async (id: string) => {
     if (!currentAdmin) {
       setIsAuthModalOpen(true);
       return;
@@ -181,31 +240,48 @@ export default function App() {
       )
     ) {
       setTransactions((prev) => prev.filter((t) => t.id !== id));
+      saveStoredTransactions(transactions.filter((t) => t.id !== id));
+      await apiDeleteTransaction(id);
+      syncWithServer(false);
     }
   };
 
-  const handleSaveTransaction = (
+  const handleSaveTransaction = async (
     txData: Omit<Transaction, 'id' | 'createdAt'>,
     existingId?: string
   ) => {
+    let targetTx: Transaction;
+
     if (existingId) {
       // Edit
-      setTransactions((prev) =>
-        prev.map((item) =>
-          item.id === existingId
-            ? { ...item, ...txData }
-            : item
-        )
-      );
+      const existing = transactions.find(t => t.id === existingId);
+      targetTx = {
+        ...txData,
+        id: existingId,
+        createdAt: existing?.createdAt || Date.now(),
+      };
+      setTransactions((prev) => {
+        const next = prev.map((item) => (item.id === existingId ? targetTx : item));
+        saveStoredTransactions(next);
+        return next;
+      });
     } else {
       // Add
-      const newTx: Transaction = {
+      targetTx = {
         ...txData,
         id: 'tx-' + Date.now(),
         createdAt: Date.now(),
       };
-      setTransactions((prev) => [newTx, ...prev]);
+      setTransactions((prev) => {
+        const next = [targetTx, ...prev];
+        saveStoredTransactions(next);
+        return next;
+      });
     }
+
+    // Save to server database immediately so all users see it
+    await apiSaveTransaction(targetTx);
+    syncWithServer(false);
   };
 
   const handleViewReceipt = (tx: Transaction) => {
@@ -235,18 +311,43 @@ export default function App() {
 
   const handleAdminLogin = (admin: AdminAccount) => {
     setCurrentAdmin(admin);
-    // Update lastLoginAt
-    setAdminAccounts((prev) =>
-      prev.map((a) => (a.id === admin.id ? { ...a, lastLoginAt: Date.now() } : a))
+    const updated = adminAccounts.map((a) =>
+      a.id === admin.id ? { ...a, lastLoginAt: Date.now() } : a
     );
+    setAdminAccounts(updated);
+    apiSaveAdmins(updated);
   };
 
   const handleAdminLogout = () => {
     setCurrentAdmin(null);
   };
 
-  const handleRegisterAdmin = (newAdmin: AdminAccount) => {
-    setAdminAccounts((prev) => [...prev, newAdmin]);
+  const handleSaveConfig = async (newCfg: AppConfig) => {
+    setConfig(newCfg);
+    saveStoredConfig(newCfg);
+    await apiSaveConfig(newCfg);
+    syncWithServer(false);
+  };
+
+  const handleSaveAdmins = async (newAdmins: AdminAccount[]) => {
+    setAdminAccounts(newAdmins);
+    saveStoredAdmins(newAdmins);
+    await apiSaveAdmins(newAdmins);
+    syncWithServer(false);
+  };
+
+  const handleRestoreDatabase = async (newTx: Transaction[]) => {
+    setTransactions(newTx);
+    saveStoredTransactions(newTx);
+    await apiRestoreDatabase({ transactions: newTx });
+    syncWithServer(false);
+  };
+
+  const handleResetDatabase = async () => {
+    setTransactions(INITIAL_TRANSACTIONS);
+    saveStoredTransactions(INITIAL_TRANSACTIONS);
+    await apiResetDatabase();
+    syncWithServer(false);
   };
 
   return (
@@ -261,7 +362,46 @@ export default function App() {
         onOpenAddModal={handleOpenAddModal}
         onOpenPdfModal={() => setIsPdfModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenShareModal={() => setIsShareModalOpen(true)}
       />
+
+      {/* Real-time synchronization status pill */}
+      <div className="bg-emerald-900/10 border-b border-emerald-200/50 py-1.5 px-4 text-xs">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-slate-600">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isSyncing ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
+              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isSyncing ? 'bg-amber-500' : 'bg-emerald-600'}`}></span>
+            </span>
+            <span className="text-[11px] font-medium text-slate-700">
+              Database Terpusat Aktif: <strong>Data Tersinkronisasi Otomatis Antar Perangkat & Link Share</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5 text-[11px]">
+            <span className="hidden sm:inline text-slate-400">
+              Sinkronisasi: {lastSyncTime}
+            </span>
+            <button
+              onClick={() => setIsShareModalOpen(true)}
+              className="inline-flex items-center gap-1.5 font-bold text-teal-900 hover:text-teal-950 bg-teal-100 hover:bg-teal-200/80 px-2.5 py-0.5 rounded-md transition-colors cursor-pointer border border-teal-300/60"
+              title="Bagikan tautan kas ke jamaah & WhatsApp"
+            >
+              <Share2 className="w-3 h-3 text-teal-700" />
+              <span>Bagikan Link Kas</span>
+            </button>
+            <button
+              onClick={() => syncWithServer(true)}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-1.5 font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-100 hover:bg-emerald-200/80 px-2.5 py-0.5 rounded-md transition-colors cursor-pointer"
+              title="Perbarui data terbaru dari server"
+            >
+              <RotateCw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-amber-600' : ''}`} />
+              <span>{isSyncing ? 'Menyinkronkan...' : 'Segarkan Data'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* 2. Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
@@ -342,9 +482,9 @@ export default function App() {
               </p>
               <p className="text-emerald-800 text-[11px]">
                 {currentAdmin ? (
-                  <span>Anda masuk sebagai <strong>{currentAdmin.fullName}</strong> ({currentAdmin.roleLabel}). Setiap penambahan transaksi akan diaudit atas nama akun Anda.</span>
+                  <span>Anda masuk sebagai <strong>{currentAdmin.fullName}</strong> ({currentAdmin.roleLabel}). Setiap transaksi baru yang Anda simpan otomatis tersinkronisasi ke server dan dapat dilihat oleh seluruh jamaah pada link share.</span>
                 ) : (
-                  <span>Seluruh jamaah Dusun Pokek dapat memantau dan mencetak laporan kas kapan saja secara terbuka. Hak penambahan data dilindungi akun admin pengurus.</span>
+                  <span>Seluruh jamaah Dusun Pokek dapat memantau dan mencetak laporan kas kapan saja secara terbuka melalui link ini. Data selalu terhubung ke server terpusat DKM.</span>
                 )}
               </p>
             </div>
@@ -356,7 +496,7 @@ export default function App() {
               className="shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-100 px-3.5 py-1.5 rounded-xl border border-emerald-300 transition-colors cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5 text-amber-600" />
-              <span>Masuk Akun Admin ({adminAccounts.length} Akun Terdaftar)</span>
+              <span>Masuk Akun Admin</span>
             </button>
           ) : (
             <button
@@ -378,7 +518,7 @@ export default function App() {
               DEWAN KEMAKMURAN MASJID (DKM) AL-IKHLAS
             </p>
             <p className="text-slate-400 text-xs mt-0.5">
-              Dusun Pokek RW 004 Desa Kawunganten, Kec. Cikaum, Kab. Subang - Jawa Barat
+              Dusun Pokek RW 004 Desa Kawunganten, Kec. Cikaum, Kab. Subang - Jawa Barat 41266
             </p>
           </div>
 
@@ -415,7 +555,7 @@ export default function App() {
         onClose={() => setIsAuthModalOpen(false)}
         adminAccounts={adminAccounts}
         onSuccess={handleAdminLogin}
-        onRegisterAdmin={handleRegisterAdmin}
+        onRegisterAdmin={(newAdmin) => handleSaveAdmins([...adminAccounts, newAdmin])}
       />
 
       <TransactionModal
@@ -451,14 +591,20 @@ export default function App() {
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         config={config}
-        onSaveConfig={(newCfg) => setConfig(newCfg)}
+        onSaveConfig={handleSaveConfig}
         transactions={transactions}
-        onRestoreTransactions={(newTx) => setTransactions(newTx)}
-        onResetTransactions={() => setTransactions(INITIAL_TRANSACTIONS)}
+        onRestoreTransactions={handleRestoreDatabase}
+        onResetTransactions={handleResetDatabase}
         adminAccounts={adminAccounts}
-        onSaveAdmins={(newAdmins) => setAdminAccounts(newAdmins)}
+        onSaveAdmins={handleSaveAdmins}
         currentAdmin={currentAdmin}
         onUpdateCurrentAdmin={(updated) => setCurrentAdmin(updated)}
+      />
+
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        config={config}
       />
     </div>
   );

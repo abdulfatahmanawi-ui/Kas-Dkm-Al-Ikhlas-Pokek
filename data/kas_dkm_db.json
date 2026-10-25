@@ -1,0 +1,57 @@
+{
+  "config": {
+    "mosqueName": "DEWAN KEMAKMURAN MASJID (DKM) AL-IKHLAS",
+    "locationDetails": "Dusun Pokek RT/RW 004",
+    "addressLine": "Dusun Pokek RW 004",
+    "rtRw": "RW 004",
+    "village": "Desa Kawunganten",
+    "district": "Kecamatan Cikaum",
+    "regency": "Kabupaten Subang",
+    "province": "Jawa Barat",
+    "postalCode": "41266",
+    "ketuaDkm": "Ust. H. Syarif Hidayatullah",
+    "bendahara": "Bpk. Ridwan Fauzi (Bendahara DKM)",
+    "sekretaris": "Bpk. Dedi Supriadi",
+    "adminPassword": "ikhlas123",
+    "phone": "082323080878"
+  },
+  "adminAccounts": [
+    {
+      "id": "admin-01",
+      "username": "admin",
+      "fullName": "Abdul Fatah",
+      "email": "abdulfatahmanawi@gmail.com",
+      "role": "superadmin",
+      "roleLabel": "Administrator Utama",
+      "password": "admin123",
+      "phone": "082323080878",
+      "avatarColor": "emerald",
+      "createdAt": 1727827200000
+    },
+    {
+      "id": "admin-02",
+      "username": "bendahara",
+      "fullName": "Bpk. Ridwan Fauzi",
+      "email": "bendahara.alikhlas@dkm.id",
+      "role": "bendahara",
+      "roleLabel": "Bendahara Kas RW 004",
+      "password": "ikhlas123",
+      "phone": "082323080878",
+      "avatarColor": "amber",
+      "createdAt": 1727827200000
+    },
+    {
+      "id": "admin-03",
+      "username": "ketua",
+      "fullName": "Ust. H. Syarif Hidayatullah",
+      "email": "ketua.alikhlas@dkm.id",
+      "role": "ketua",
+      "roleLabel": "Ketua DKM Al-Ikhlas",
+      "password": "ketua123",
+      "phone": "082323080878",
+      "avatarColor": "teal",
+      "createdAt": 1727827200000
+    }
+  ],
+  "transactions": []
+}
